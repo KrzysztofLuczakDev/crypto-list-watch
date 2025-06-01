@@ -68,5 +68,4 @@ struct CryptocurrencyRowView: View {
             priceChangePercentage24h: 2.5
         )
     )
-    .previewLayout(.sizeThatFits)
 } 

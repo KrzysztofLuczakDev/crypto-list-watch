@@ -37,9 +37,25 @@ struct Cryptocurrency: Codable, Identifiable {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = "USD"
-        formatter.notation = .compactName
         formatter.maximumFractionDigits = 1
-        return formatter.string(from: NSNumber(value: marketCap)) ?? "$0"
+        
+        // Custom compact formatting for watchOS compatibility
+        let value = marketCap
+        if value >= 1_000_000_000_000 {
+            let trillions = value / 1_000_000_000_000
+            return "$\(String(format: "%.1fT", trillions))"
+        } else if value >= 1_000_000_000 {
+            let billions = value / 1_000_000_000
+            return "$\(String(format: "%.1fB", billions))"
+        } else if value >= 1_000_000 {
+            let millions = value / 1_000_000
+            return "$\(String(format: "%.1fM", millions))"
+        } else if value >= 1_000 {
+            let thousands = value / 1_000
+            return "$\(String(format: "%.1fK", thousands))"
+        } else {
+            return formatter.string(from: NSNumber(value: value)) ?? "$0"
+        }
     }
     
     var formattedPriceChange: String {
