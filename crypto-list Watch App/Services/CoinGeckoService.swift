@@ -43,8 +43,13 @@ class CoinGeckoService: ObservableObject {
         }
     }
     
-    func searchCryptocurrencies(query: String) async throws -> [Cryptocurrency] {
-        let urlString = "\(baseURL)/coins/markets?vs_currency=usd&ids=\(query.lowercased())&order=market_cap_desc&per_page=50&page=1&sparkline=false&price_change_percentage=24h"
+    func fetchCryptocurrenciesByIds(_ ids: [String]) async throws -> [Cryptocurrency] {
+        guard !ids.isEmpty else {
+            return []
+        }
+        
+        let idsString = ids.joined(separator: ",")
+        let urlString = "\(baseURL)/coins/markets?vs_currency=usd&ids=\(idsString)&order=market_cap_desc&per_page=\(ids.count)&page=1&sparkline=false&price_change_percentage=24h"
         
         guard let url = URL(string: urlString) else {
             throw CoinGeckoError.invalidURL
@@ -62,10 +67,63 @@ class CoinGeckoService: ObservableObject {
             }
             
             let cryptocurrencies = try JSONDecoder().decode([Cryptocurrency].self, from: data)
-            return cryptocurrencies.filter { crypto in
-                crypto.name.lowercased().contains(query.lowercased()) ||
-                crypto.symbol.lowercased().contains(query.lowercased())
+            return cryptocurrencies
+            
+        } catch let error as DecodingError {
+            throw CoinGeckoError.decodingError(error.localizedDescription)
+        } catch {
+            throw CoinGeckoError.networkError(error.localizedDescription)
+        }
+    }
+    
+    func searchCryptocurrencies(query: String) async throws -> [Cryptocurrency] {
+        // First, search for coins using the search endpoint
+        let searchUrlString = "\(baseURL)/search?query=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+        
+        guard let searchUrl = URL(string: searchUrlString) else {
+            throw CoinGeckoError.invalidURL
+        }
+        
+        do {
+            let (searchData, searchResponse) = try await session.data(from: searchUrl)
+            
+            guard let httpSearchResponse = searchResponse as? HTTPURLResponse else {
+                throw CoinGeckoError.invalidResponse
             }
+            
+            guard httpSearchResponse.statusCode == 200 else {
+                throw CoinGeckoError.serverError(httpSearchResponse.statusCode)
+            }
+            
+            let searchResult = try JSONDecoder().decode(SearchResponse.self, from: searchData)
+            
+            // Get the first 10 coin IDs from search results
+            let coinIds = Array(searchResult.coins.prefix(10)).map { $0.id }
+            
+            if coinIds.isEmpty {
+                return []
+            }
+            
+            // Now fetch market data for these coins
+            let idsString = coinIds.joined(separator: ",")
+            let marketUrlString = "\(baseURL)/coins/markets?vs_currency=usd&ids=\(idsString)&order=market_cap_desc&per_page=10&page=1&sparkline=false&price_change_percentage=24h"
+            
+            guard let marketUrl = URL(string: marketUrlString) else {
+                throw CoinGeckoError.invalidURL
+            }
+            
+            let (marketData, marketResponse) = try await session.data(from: marketUrl)
+            
+            guard let httpMarketResponse = marketResponse as? HTTPURLResponse else {
+                throw CoinGeckoError.invalidResponse
+            }
+            
+            guard httpMarketResponse.statusCode == 200 else {
+                throw CoinGeckoError.serverError(httpMarketResponse.statusCode)
+            }
+            
+            let cryptocurrencies = try JSONDecoder().decode([Cryptocurrency].self, from: marketData)
+            return cryptocurrencies
             
         } catch let error as DecodingError {
             throw CoinGeckoError.decodingError(error.localizedDescription)
@@ -96,4 +154,15 @@ enum CoinGeckoError: Error, LocalizedError {
             return "Decoding error: \(message)"
         }
     }
+}
+
+// Add search response models
+struct SearchResponse: Codable {
+    let coins: [SearchCoin]
+}
+
+struct SearchCoin: Codable {
+    let id: String
+    let name: String
+    let symbol: String
 } 

@@ -9,6 +9,8 @@ import SwiftUI
 
 struct CryptocurrencyRowView: View {
     let cryptocurrency: Cryptocurrency
+    let isFavorite: Bool
+    let onFavoriteToggle: () -> Void
     
     var body: some View {
         HStack(spacing: 8) {
@@ -50,6 +52,15 @@ struct CryptocurrencyRowView: View {
                         .foregroundColor(cryptocurrency.priceChangePercentage24h ?? 0 >= 0 ? .green : .red)
                 }
             }
+            
+            // Favorite star button
+            Button(action: onFavoriteToggle) {
+                Image(systemName: isFavorite ? "star.fill" : "star")
+                    .font(.system(size: 15))
+                    .foregroundColor(isFavorite ? .yellow : .gray)
+            }
+            .buttonStyle(PlainButtonStyle())
+            .frame(width: 20, height: 20)
         }
         .padding(.vertical, 2)
     }
@@ -66,6 +77,8 @@ struct CryptocurrencyRowView: View {
             marketCap: 850000000000,
             marketCapRank: 1,
             priceChangePercentage24h: 2.5
-        )
+        ),
+        isFavorite: false,
+        onFavoriteToggle: {}
     )
 } 
