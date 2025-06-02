@@ -51,8 +51,8 @@ struct CryptocurrencyRowView: View {
         switch rankString.count {
         case 1: return 10  // Single digit (1-9)
         case 2: return 9  // Two digits (10-99)
-        case 3: return 8   // Three digits (100-999)
-        default: return 7  // Four or more digits (1000+)
+        case 3: return 7   // Three digits (100-999)
+        default: return 5  // Four or more digits (1000+)
         }
     }
     
@@ -124,7 +124,7 @@ struct CryptocurrencyRowView: View {
             image: "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
             currentPrice: 450000.0,
             marketCap: 850000000000,
-            marketCapRank: 11,
+            marketCapRank: 1000,
             priceChangePercentage24h: 2.5
         ),
         isFavorite: false,

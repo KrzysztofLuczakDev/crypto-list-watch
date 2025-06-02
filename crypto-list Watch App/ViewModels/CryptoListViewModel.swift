@@ -15,6 +15,7 @@ class CryptoListViewModel: ObservableObject {
     @Published var searchResults: [Cryptocurrency] = []
     @Published var isLoading = false
     @Published var isFavoritesLoading = false
+    @Published var isLoadingMore = false
     @Published var errorMessage: String?
     @Published var searchText = ""
     @Published var isSearching = false
@@ -24,6 +25,16 @@ class CryptoListViewModel: ObservableObject {
     private let favoritesManager = FavoritesManager.shared
     private var searchTask: Task<Void, Never>?
     
+    // Pagination properties
+    private var currentPage = 1
+    private let itemsPerPage = CoinGeckoConstants.defaultItemsPerPage
+    private let maxItems = CoinGeckoConstants.maxTotalItems
+    private var hasMoreData = true
+    
+    var canLoadMore: Bool {
+        return hasMoreData && cryptocurrencies.count < maxItems && !isLoading && !isLoadingMore
+    }
+    
     init() {
         loadTopCryptocurrencies()
         loadFavorites()
@@ -32,18 +43,67 @@ class CryptoListViewModel: ObservableObject {
     func loadTopCryptocurrencies() {
         isLoading = true
         errorMessage = nil
+        currentPage = 1
+        hasMoreData = true
         
         Task {
             do {
-                let cryptos = try await coinGeckoService.fetchTopCryptocurrencies(limit: 10)
+                let cryptos = try await coinGeckoService.fetchTopCryptocurrencies(page: currentPage, limit: itemsPerPage)
                 await MainActor.run {
                     self.cryptocurrencies = cryptos
                     self.isLoading = false
+                    // Always allow more loading after initial load unless we got nothing
+                    self.hasMoreData = !cryptos.isEmpty
+                }
+            } catch let error as CoinGeckoError {
+                await MainActor.run {
+                    self.handleError(error)
+                    self.isLoading = false
+                    self.hasMoreData = false
                 }
             } catch {
                 await MainActor.run {
-                    self.errorMessage = error.localizedDescription
+                    self.errorMessage = "Unexpected error: \(error.localizedDescription)"
                     self.isLoading = false
+                    self.hasMoreData = false
+                }
+            }
+        }
+    }
+    
+    func loadMoreCryptocurrencies() {
+        guard canLoadMore else { return }
+        
+        isLoadingMore = true
+        currentPage += 1
+        
+        Task {
+            do {
+                let newCryptos = try await coinGeckoService.fetchTopCryptocurrencies(page: currentPage, limit: itemsPerPage)
+                await MainActor.run {
+                    self.cryptocurrencies.append(contentsOf: newCryptos)
+                    self.isLoadingMore = false
+                    
+                    // Continue loading until we get no new items OR reach exactly 100 items
+                    self.hasMoreData = !newCryptos.isEmpty && self.cryptocurrencies.count < self.maxItems
+                }
+            } catch let error as CoinGeckoError {
+                await MainActor.run {
+                    self.isLoadingMore = false
+                    self.currentPage -= 1 // Revert page increment on error
+                    
+                    // Only show error for non-retryable errors
+                    if !error.isRetryable {
+                        self.errorMessage = error.localizedDescription
+                    }
+                    self.hasMoreData = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.isLoadingMore = false
+                    self.currentPage -= 1 // Revert page increment on error
+                    // Don't show error for pagination, just stop loading more
+                    self.hasMoreData = false
                 }
             }
         }
@@ -64,6 +124,14 @@ class CryptoListViewModel: ObservableObject {
                 await MainActor.run {
                     self.favoriteCryptocurrencies = cryptos
                     self.isFavoritesLoading = false
+                }
+            } catch let error as CoinGeckoError {
+                await MainActor.run {
+                    self.isFavoritesLoading = false
+                    // Only show error for critical issues
+                    if case .networkUnavailable = error {
+                        self.errorMessage = error.localizedDescription
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -91,7 +159,7 @@ class CryptoListViewModel: ObservableObject {
         }
         
         let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedQuery.count >= 2 else {
+        guard trimmedQuery.count >= CoinGeckoConstants.minSearchQueryLength else {
             searchResults = []
             isSearching = false
             return
@@ -104,7 +172,7 @@ class CryptoListViewModel: ObservableObject {
         
         searchTask = Task {
             // Add a small delay to avoid too many API calls
-            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+            try? await Task.sleep(nanoseconds: CoinGeckoConstants.searchDebounceDelay)
             
             guard !Task.isCancelled else { return }
             
@@ -113,6 +181,17 @@ class CryptoListViewModel: ObservableObject {
                 await MainActor.run {
                     if !Task.isCancelled {
                         self.searchResults = results
+                        self.isSearching = false
+                    }
+                }
+            } catch let error as CoinGeckoError {
+                await MainActor.run {
+                    if !Task.isCancelled {
+                        // Show rate limit errors to user
+                        if case .rateLimitExceeded = error {
+                            self.errorMessage = error.localizedDescription
+                        }
+                        self.searchResults = []
                         self.isSearching = false
                     }
                 }
@@ -140,6 +219,23 @@ class CryptoListViewModel: ObservableObject {
             loadTopCryptocurrencies()
         } else {
             loadFavorites()
+        }
+    }
+    
+    // MARK: - Error Handling
+    
+    private func handleError(_ error: CoinGeckoError) {
+        switch error {
+        case .networkUnavailable:
+            self.errorMessage = CoinGeckoConstants.ErrorMessages.noInternet
+        case .rateLimitExceeded(let retryAfter):
+            self.errorMessage = "Too many requests. Please wait \(Int(retryAfter)) seconds before trying again."
+        case .serverError(let code) where code >= 500:
+            self.errorMessage = CoinGeckoConstants.ErrorMessages.serverUnavailable
+        case .forbidden, .unauthorized:
+            self.errorMessage = CoinGeckoConstants.ErrorMessages.accessDenied
+        default:
+            self.errorMessage = error.localizedDescription
         }
     }
 } 

@@ -131,7 +131,7 @@ struct ContentView: View {
                 if cryptocurrencies.isEmpty && !viewModel.searchText.isEmpty {
                     emptySearchView
                 } else {
-                    ForEach(cryptocurrencies) { crypto in
+                    ForEach(Array(cryptocurrencies.enumerated()), id: \.element.id) { index, crypto in
                         CryptocurrencyRowView(
                             cryptocurrency: crypto,
                             isFavorite: viewModel.isFavorite(crypto),
@@ -140,6 +140,24 @@ struct ContentView: View {
                             }
                         )
                         .padding(.horizontal)
+                        .onAppear {
+                            // Load more data when approaching the end (for top coins tab only)
+                            if shouldLoadMore(currentIndex: index, totalCount: cryptocurrencies.count) {
+                                viewModel.loadMoreCryptocurrencies()
+                            }
+                        }
+                    }
+                    
+                    // Loading indicator for pagination
+                    if viewModel.isLoadingMore {
+                        HStack {
+                            ProgressView()
+                                .scaleEffect(CoinGeckoConstants.loadingIndicatorScale)
+                            Text("Loading more...")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 8)
                     }
                 }
             }
@@ -150,10 +168,20 @@ struct ContentView: View {
         }
     }
     
+    private func shouldLoadMore(currentIndex: Int, totalCount: Int) -> Bool {
+        // Only load more for top coins tab, not for search results or favorites
+        guard viewModel.selectedTab == 0 && viewModel.searchText.isEmpty else {
+            return false
+        }
+        
+        // Load more when we're near the end using the configured offset
+        return currentIndex >= totalCount - CoinGeckoConstants.infiniteScrollTriggerOffset && viewModel.canLoadMore
+    }
+    
     private var loadingView: some View {
         VStack(spacing: 8) {
             ProgressView()
-                .scaleEffect(0.8)
+                .scaleEffect(CoinGeckoConstants.loadingIndicatorScale + 0.2)
             Text("Loading...")
                 .font(.caption)
                 .foregroundColor(.secondary)
