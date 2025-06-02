@@ -7,56 +7,105 @@
 
 import SwiftUI
 
+extension Double {
+    var formattedCryptoPrice: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.locale = Locale(identifier: "en_US") // Use period as decimal separator
+        
+        // Determine appropriate decimal places based on price magnitude
+        if self >= 1000 {
+            // Large prices: show 2 decimal places with thousand separators
+            formatter.minimumFractionDigits = 2
+            formatter.maximumFractionDigits = 2
+            formatter.usesGroupingSeparator = true
+        } else if self >= 1 {
+            // Moderate prices: show up to 4 decimal places
+            formatter.minimumFractionDigits = 2
+            formatter.maximumFractionDigits = 4
+            formatter.usesGroupingSeparator = false
+        } else if self >= 0.01 {
+            // Small prices: show up to 6 decimal places
+            formatter.minimumFractionDigits = 4
+            formatter.maximumFractionDigits = 6
+            formatter.usesGroupingSeparator = false
+        } else {
+            // Very small prices: show up to 8 decimal places (like Bitcoin's satoshi precision)
+            formatter.minimumFractionDigits = 6
+            formatter.maximumFractionDigits = 8
+            formatter.usesGroupingSeparator = false
+        }
+        
+        return formatter.string(from: NSNumber(value: self)) ?? String(format: "%.8f", self)
+    }
+}
+
 struct CryptocurrencyRowView: View {
     let cryptocurrency: Cryptocurrency
     let isFavorite: Bool
     let onFavoriteToggle: () -> Void
     
+    // Computed property for dynamic rank font size
+    private var rankFontSize: CGFloat {
+        let rankString = String(cryptocurrency.marketCapRank)
+        switch rankString.count {
+        case 1: return 10  // Single digit (1-9)
+        case 2: return 9  // Two digits (10-99)
+        case 3: return 8   // Three digits (100-999)
+        default: return 7  // Four or more digits (1000+)
+        }
+    }
+    
     var body: some View {
-        HStack(spacing: 8) {
-            // Rank badge
+        HStack(spacing: 4) {
+            // Rank badge with dynamic font size
             Text("#\(cryptocurrency.marketCapRank)")
-                .font(.caption2)
+                .font(.system(size: rankFontSize))
                 .fontWeight(.medium)
                 .foregroundColor(.secondary)
-                .frame(width: 25, alignment: .leading)
+                .frame(width: 20, alignment: .leading)
             
             VStack(alignment: .leading, spacing: 2) {
-                // Name and Symbol
+                // Name and Symbol with icon
                 HStack {
-                    Text(cryptocurrency.symbol.uppercased())
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
+                    // Coin icon
+                    AsyncImage(url: URL(string: cryptocurrency.image)) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    } placeholder: {
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                    }
+                    .frame(width: 12, height: 12)
                     
-                    Spacer()
-                    
-                    Text(cryptocurrency.formattedPrice)
-                        .font(.caption)
-                        .fontWeight(.semibold)
+                    Text("\(cryptocurrency.symbol.uppercased())/USDT")
+                        .font(.system(size: 10))
                         .foregroundColor(.primary)
-                }
-                
-                // Name and 24h change
-                HStack {
-                    Text(cryptocurrency.name)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
                     
                     Spacer()
                     
                     Text(cryptocurrency.formattedPriceChange)
-                        .font(.caption2)
+                        .font(.system(size: 10))
                         .fontWeight(.medium)
                         .foregroundColor(cryptocurrency.priceChangePercentage24h ?? 0 >= 0 ? .green : .red)
+                }
+                
+                // Price with proper crypto formatting and color coding
+                HStack {
+                    Text(cryptocurrency.currentPrice.formattedCryptoPrice)
+                        .font(.system(size: 11))
+                        .fontWeight(.semibold)
+                        .foregroundColor(
+                            (cryptocurrency.priceChangePercentage24h ?? 0) >= 0 ? .green : .red
+                        )
                 }
             }
             
             // Favorite star button
             Button(action: onFavoriteToggle) {
                 Image(systemName: isFavorite ? "star.fill" : "star")
-                    .font(.system(size: 15))
+                    .font(.system(size: 12))
                     .foregroundColor(isFavorite ? .yellow : .gray)
             }
             .buttonStyle(PlainButtonStyle())
@@ -72,13 +121,13 @@ struct CryptocurrencyRowView: View {
             id: "bitcoin",
             symbol: "btc",
             name: "Bitcoin",
-            image: "",
-            currentPrice: 45000.0,
+            image: "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
+            currentPrice: 450000.0,
             marketCap: 850000000000,
-            marketCapRank: 1,
+            marketCapRank: 11,
             priceChangePercentage24h: 2.5
         ),
         isFavorite: false,
         onFavoriteToggle: {}
     )
-} 
+}

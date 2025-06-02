@@ -37,7 +37,7 @@ struct ContentView: View {
             // Tab title
             HStack {
                 Text("Top Coins")
-                    .font(.caption2)
+                    .font(.system(size: 10))
                     .fontWeight(.semibold)
                     .foregroundColor(.primary)
                 Spacer()
@@ -61,7 +61,7 @@ struct ContentView: View {
             // Tab title
             HStack {
                 Text("Favorites")
-                    .font(.caption2)
+                    .font(.system(size: 10))
                     .fontWeight(.semibold)
                     .foregroundColor(.primary)
                 Spacer()
