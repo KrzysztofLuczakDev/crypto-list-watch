@@ -10,12 +10,34 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var viewModel = CryptoListViewModel()
     @State private var showingSearch = false
+    @State private var showingSettings = false
+    
+    // Computed property for dynamic title
+    private var currentTitle: String {
+        switch viewModel.selectedTab {
+        case 0:
+            return "Top Coins"
+        case 1:
+            return "Favorites"
+        default:
+            return "Crypto List"
+        }
+    }
     
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Search Bar
-                searchBar
+                // Header with dynamic title
+                HeaderView(
+                    title: currentTitle,
+                    showingSearch: $showingSearch,
+                    showingSettings: $showingSettings
+                )
+                
+                // Search Bar (shown conditionally)
+                if showingSearch {
+                    searchBar
+                }
                 
                 // Tab View
                 TabView(selection: $viewModel.selectedTab) {
@@ -30,21 +52,13 @@ struct ContentView: View {
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .automatic))
             }
         }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
+        }
     }
     
     private var topCoinsView: some View {
         VStack {
-            // Tab title
-            HStack {
-                Text("Top Coins")
-                    .font(.system(size: 10))
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-                Spacer()
-            }
-            .padding(.horizontal)
-            .padding(.top, 4)
-            
             // Content
             if viewModel.isLoading {
                 loadingView
@@ -58,17 +72,6 @@ struct ContentView: View {
     
     private var favoritesView: some View {
         VStack {
-            // Tab title
-            HStack {
-                Text("Favorites")
-                    .font(.system(size: 10))
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-                Spacer()
-            }
-            .padding(.horizontal)
-            .padding(.top, 4)
-            
             // Content
             if viewModel.isFavoritesLoading {
                 loadingView
@@ -80,37 +83,47 @@ struct ContentView: View {
         }
     }
 
-private var searchBar: some View {
-    HStack(spacing: 6) {
-        Image(systemName: "magnifyingglass")
-            .foregroundColor(.gray)
-            .font(.system(size: 10))
+    private var searchBar: some View {
+        HStack(spacing: 6) {
+            TextField("Search...", text: $viewModel.searchText)
+                .textFieldStyle(PlainTextFieldStyle())
+                .font(.system(size: 9))
+                .disableAutocorrection(true)
+                .onChange(of: viewModel.searchText) { _, _ in
+                    viewModel.searchCryptocurrencies()
+                }
 
-        TextField("Search...", text: $viewModel.searchText)
-            .textFieldStyle(PlainTextFieldStyle())
-            .font(.system(size: 11))
-            .disableAutocorrection(true)
-            .onChange(of: viewModel.searchText) { _, _ in
-                viewModel.searchCryptocurrencies()
+            if !viewModel.searchText.isEmpty {
+                Button(action: viewModel.clearSearch) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.gray)
+                        .font(.system(size: 10))
+                }
+                .buttonStyle(PlainButtonStyle())
             }
-
-        if !viewModel.searchText.isEmpty {
-            Button(action: viewModel.clearSearch) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.gray)
-                    .font(.system(size: 10))
+            
+            // Close search button
+            Button(action: {
+                showingSearch = false
+                viewModel.clearSearch()
+            }) {
+                HStack {
+                    Text("Close")
+                        .font(.system(size: 9))
+                        .foregroundColor(.gray)
+                }
             }
             .buttonStyle(PlainButtonStyle())
         }
+        .padding(.horizontal, 8)
+        .frame(height: 20)
+        .background(Color(white: 0.1).opacity(0.2))
+        .clipShape(Capsule())
+        .padding(.horizontal, 12)
+        .padding(.top, 2)
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .animation(.easeInOut(duration: 0.3), value: showingSearch)
     }
-    .padding(.horizontal, 8)
-    .frame(height: 26)
-    .background(Color(white: 0.15).opacity(0.2))
-    .clipShape(Capsule())
-    .padding(.horizontal, 12)
-    .padding(.top, 2)
-}
-
     
     private func cryptoList(cryptocurrencies: [Cryptocurrency]) -> some View {
         ScrollView {
@@ -201,11 +214,6 @@ private var searchBar: some View {
             Text("No Favorites")
                 .font(.caption)
                 .fontWeight(.semibold)
-            
-            Text("Tap the star next to any coin to add it to your favorites")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
