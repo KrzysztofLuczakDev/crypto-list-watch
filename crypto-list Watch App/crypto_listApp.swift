@@ -9,9 +9,13 @@ import SwiftUI
 
 @main
 struct crypto_list_Watch_AppApp: App {
+    @StateObject private var themeManager = ThemeManager.shared
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .applyAppTheme()
+                .environmentObject(themeManager)
         }
     }
 }

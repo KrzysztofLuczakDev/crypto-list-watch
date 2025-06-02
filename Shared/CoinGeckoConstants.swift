@@ -1,63 +1,62 @@
 //
 //  CoinGeckoConstants.swift
-//  crypto-list Watch App
+//  crypto-list
 //
 //  Created by Krzysztof Łuczak on 01/06/2025.
 //
 
 import Foundation
 
-/// Constants for CoinGecko API configuration and app behavior
-/// This struct centralizes all configuration values to ensure consistency across the app
+/// Central configuration and constants for CoinGecko API integration
+/// This struct contains all the configuration values, endpoints, and utility methods
+/// needed to interact with the CoinGecko API consistently across the app
 struct CoinGeckoConstants {
     
     // MARK: - API Configuration
     
-    /// Base URL for CoinGecko API
+    /// Base URL for CoinGecko API v3
     /// Example: "https://api.coingecko.com/api/v3"
-    /// Used to construct all API endpoint URLs
+    /// All API endpoints are appended to this base URL
     static let baseURL = "https://api.coingecko.com/api/v3"
     
     /// User agent string sent with all HTTP requests
-    /// Example: "crypto-list-watchos/1.0"
+    /// Example: "CryptoList-watchOS/1.0"
     /// Helps CoinGecko identify our app in their logs and analytics
-    static let userAgent = "crypto-list-watchos/1.0"
+    static let userAgent = "CryptoList-watchOS/1.0"
     
-    // MARK: - Rate Limiting
+    // MARK: - Pagination Configuration
+    
+    /// Default number of items to fetch per API request
+    /// Example: 25 items per page provides good balance of data and performance
+    /// Optimized for watchOS to avoid overwhelming the small screen
+    static let defaultItemsPerPage = 25
+    
+    /// Maximum total items to load across all pages
+    /// Example: 100 total items prevents infinite scrolling on limited watchOS storage
+    /// Keeps memory usage reasonable while providing comprehensive data
+    static let maxTotalItems = 100
+    
+    // MARK: - Network Configuration
+    
+    /// Maximum number of retry attempts for failed requests
+    /// Example: If a request fails due to network issues, retry up to 3 times
+    /// Improves reliability on unstable watchOS network connections
+    static let maxRetries = 3
+    
+    /// Maximum number of retry attempts for failed requests (alias for compatibility)
+    /// Example: If a request fails due to network issues, retry up to 3 times
+    /// Improves reliability on unstable watchOS network connections
+    static let maxRetryAttempts = 3
+    
+    /// Maximum delay between retry attempts in seconds
+    /// Example: 8.0 seconds prevents excessive waiting while allowing network recovery
+    /// Balances user experience with network resilience
+    static let maxRetryDelay: TimeInterval = 8.0
     
     /// Maximum API requests allowed per minute for CoinGecko free tier
     /// Example: 25 requests/minute = ~2.4 seconds between requests
     /// Prevents hitting rate limits that would result in 429 errors
     static let maxRequestsPerMinute = 25
-    
-    /// Number of retry attempts for failed network requests
-    /// Example: If initial request fails, retry up to 3 times before giving up
-    /// Helps handle temporary network issues or server hiccups
-    static let maxRetryAttempts = 3
-    
-    /// Maximum delay between retry attempts in seconds
-    /// Example: 1st retry after 2s, 2nd after 4s, 3rd after 8s, but never more than 10s
-    /// Uses exponential backoff capped at this value to avoid excessive waiting
-    static let maxRetryDelay = 10.0
-    
-    // MARK: - Pagination
-    
-    /// Default number of cryptocurrencies to fetch per API request
-    /// Example: GET /coins/markets?per_page=10 returns 10 coins
-    /// Balances between data freshness and network efficiency
-    static let defaultItemsPerPage = 100
-    
-    /// Maximum total cryptocurrencies that can be loaded in the app
-    /// Example: After loading 1000 coins, infinite scroll stops working
-    /// Prevents excessive memory usage and API calls on watchOS
-    static let maxTotalItems = 1000
-    
-    /// Number of items from the end of list to trigger loading more data
-    /// Example: In a list of 50 items, start loading more when user scrolls to item 40
-    /// Provides smooth infinite scroll experience without waiting for the very end
-    static let infiniteScrollTriggerOffset = 10
-    
-    // MARK: - Network Configuration
     
     /// Timeout for individual HTTP requests in seconds
     /// Example: If a request takes longer than 30 seconds, it will be cancelled

@@ -23,6 +23,15 @@ class CoinGeckoService: ObservableObject {
     private let maxRequestsPerMinute = CoinGeckoConstants.maxRequestsPerMinute
     private let rateLimitQueue = DispatchQueue(label: "RateLimit", attributes: .concurrent)
     
+    // API Usage Analytics
+    private var dailyRequestCount = 0
+    private var monthlyRequestCount = 0
+    private var lastDailyReset = Date()
+    private var lastMonthlyReset = Date()
+    private var endpointUsage: [String: Int] = [:]
+    private var totalRequestsEver = 0
+    private let analyticsQueue = DispatchQueue(label: "Analytics", attributes: .concurrent)
+    
     // Network status
     @Published var isNetworkAvailable = true
     
@@ -51,12 +60,16 @@ class CoinGeckoService: ObservableObject {
         cache.countLimit = CoinGeckoConstants.cacheCountLimit
         cache.totalCostLimit = CoinGeckoConstants.cacheSizeLimit
         
+        // Load saved analytics data
+        loadAnalyticsData()
+        
         // Start network monitoring
         startNetworkMonitoring()
     }
     
     deinit {
         pathMonitor.cancel()
+        saveAnalyticsData()
     }
     
     private func startNetworkMonitoring() {
@@ -179,6 +192,10 @@ class CoinGeckoService: ObservableObject {
         // Set cache policy
         request.cachePolicy = .returnCacheDataElseLoad
         
+        // Track API call for analytics
+        let endpoint = url.path
+        trackAPICall(endpoint: endpoint)
+        
         let (data, response) = try await session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -209,41 +226,40 @@ class CoinGeckoService: ObservableObject {
     
     // MARK: - Public API Methods
     
-    func fetchTopCryptocurrencies(limit: Int = CoinGeckoConstants.defaultItemsPerPage) async throws -> [Cryptocurrency] {
-        let urlString = CoinGeckoConstants.marketsURL(page: 1, limit: limit)
+    func fetchTopCryptocurrencies(limit: Int = CoinGeckoConstants.defaultItemsPerPage, currency: String = CoinGeckoConstants.QueryParams.defaultVsCurrency) async throws -> [Cryptocurrency] {
+        let urlString = CoinGeckoConstants.marketsURL(page: 1, limit: limit, currency: currency)
         
         guard let url = URL(string: urlString) else {
             throw CoinGeckoError.invalidURL
         }
         
-        let cacheKey = CoinGeckoConstants.topCryptosCacheKey(limit: limit)
+        let cacheKey = CoinGeckoConstants.topCryptosCacheKey(limit: limit, currency: currency)
         return try await performRequest(url: url, type: [Cryptocurrency].self, cacheKey: cacheKey)
     }
     
-    func fetchTopCryptocurrencies(page: Int, limit: Int = CoinGeckoConstants.defaultItemsPerPage) async throws -> [Cryptocurrency] {
-        let urlString = CoinGeckoConstants.marketsURL(page: page, limit: limit)
+    func fetchTopCryptocurrencies(page: Int, limit: Int = CoinGeckoConstants.defaultItemsPerPage, currency: String = CoinGeckoConstants.QueryParams.defaultVsCurrency) async throws -> [Cryptocurrency] {
+        let urlString = CoinGeckoConstants.marketsURL(page: page, limit: limit, currency: currency)
         
         guard let url = URL(string: urlString) else {
             throw CoinGeckoError.invalidURL
         }
         
-        let cacheKey = CoinGeckoConstants.topCryptosPageCacheKey(page: page, limit: limit)
+        let cacheKey = CoinGeckoConstants.topCryptosPageCacheKey(page: page, limit: limit, currency: currency)
         return try await performRequest(url: url, type: [Cryptocurrency].self, cacheKey: cacheKey)
     }
     
-    func fetchCryptocurrenciesByIds(_ ids: [String]) async throws -> [Cryptocurrency] {
+    func fetchCryptocurrenciesByIds(_ ids: [String], currency: String = CoinGeckoConstants.QueryParams.defaultVsCurrency) async throws -> [Cryptocurrency] {
         guard !ids.isEmpty else {
             return []
         }
         
-        let idsString = ids.joined(separator: ",")
-        let urlString = "\(baseURL)\(CoinGeckoConstants.Endpoints.markets)?vs_currency=\(CoinGeckoConstants.QueryParams.vsCurrency)&ids=\(idsString)&order=\(CoinGeckoConstants.QueryParams.order)&per_page=\(ids.count)&page=1&sparkline=\(CoinGeckoConstants.QueryParams.sparkline)&price_change_percentage=\(CoinGeckoConstants.QueryParams.priceChangePercentage)"
+        let urlString = CoinGeckoConstants.marketsURLByIds(ids: ids, currency: currency)
         
         guard let url = URL(string: urlString) else {
             throw CoinGeckoError.invalidURL
         }
         
-        let cacheKey = CoinGeckoConstants.cryptosByIdsCacheKey(ids: ids)
+        let cacheKey = CoinGeckoConstants.cryptosByIdsCacheKey(ids: ids, currency: currency)
         return try await performRequest(url: url, type: [Cryptocurrency].self, cacheKey: cacheKey)
     }
     
@@ -264,7 +280,7 @@ class CoinGeckoService: ObservableObject {
             return []
         }
         
-        // Now fetch market data for these coins
+        // Now fetch market data for these coins (using default currency for search)
         return try await fetchCryptocurrenciesByIds(coinIds)
     }
     
@@ -276,6 +292,95 @@ class CoinGeckoService: ObservableObject {
     
     func getCacheSize() -> Int {
         return cache.totalCostLimit
+    }
+    
+    // MARK: - API Usage Analytics
+    
+    private func trackAPICall(endpoint: String) {
+        analyticsQueue.async(flags: .barrier) {
+            let now = Date()
+            
+            // Reset daily counter if a day has passed
+            if Calendar.current.dateInterval(of: .day, for: self.lastDailyReset) != Calendar.current.dateInterval(of: .day, for: now) {
+                self.dailyRequestCount = 0
+                self.lastDailyReset = now
+            }
+            
+            // Reset monthly counter if a month has passed
+            if Calendar.current.dateInterval(of: .month, for: self.lastMonthlyReset) != Calendar.current.dateInterval(of: .month, for: now) {
+                self.monthlyRequestCount = 0
+                self.lastMonthlyReset = now
+            }
+            
+            // Increment counters
+            self.dailyRequestCount += 1
+            self.monthlyRequestCount += 1
+            self.totalRequestsEver += 1
+            
+            // Track endpoint usage
+            self.endpointUsage[endpoint, default: 0] += 1
+            
+            // Save analytics data periodically
+            if self.totalRequestsEver % 10 == 0 {
+                self.saveAnalyticsData()
+            }
+            
+            // Log usage for debugging
+            print("📊 API Call: \(endpoint) | Daily: \(self.dailyRequestCount) | Monthly: \(self.monthlyRequestCount) | Total: \(self.totalRequestsEver)")
+        }
+    }
+    
+    private func loadAnalyticsData() {
+        let defaults = UserDefaults.standard
+        dailyRequestCount = defaults.integer(forKey: "dailyRequestCount")
+        monthlyRequestCount = defaults.integer(forKey: "monthlyRequestCount")
+        totalRequestsEver = defaults.integer(forKey: "totalRequestsEver")
+        
+        if let lastDailyResetData = defaults.object(forKey: "lastDailyReset") as? Date {
+            lastDailyReset = lastDailyResetData
+        }
+        
+        if let lastMonthlyResetData = defaults.object(forKey: "lastMonthlyReset") as? Date {
+            lastMonthlyReset = lastMonthlyResetData
+        }
+        
+        if let endpointData = defaults.object(forKey: "endpointUsage") as? [String: Int] {
+            endpointUsage = endpointData
+        }
+    }
+    
+    private func saveAnalyticsData() {
+        let defaults = UserDefaults.standard
+        defaults.set(dailyRequestCount, forKey: "dailyRequestCount")
+        defaults.set(monthlyRequestCount, forKey: "monthlyRequestCount")
+        defaults.set(totalRequestsEver, forKey: "totalRequestsEver")
+        defaults.set(lastDailyReset, forKey: "lastDailyReset")
+        defaults.set(lastMonthlyReset, forKey: "lastMonthlyReset")
+        defaults.set(endpointUsage, forKey: "endpointUsage")
+    }
+    
+    // Public methods to get usage statistics
+    func getUsageStatistics() -> APIUsageStatistics {
+        return APIUsageStatistics(
+            dailyRequests: dailyRequestCount,
+            monthlyRequests: monthlyRequestCount,
+            totalRequests: totalRequestsEver,
+            endpointBreakdown: endpointUsage,
+            lastDailyReset: lastDailyReset,
+            lastMonthlyReset: lastMonthlyReset
+        )
+    }
+    
+    func resetAnalytics() {
+        analyticsQueue.async(flags: .barrier) {
+            self.dailyRequestCount = 0
+            self.monthlyRequestCount = 0
+            self.totalRequestsEver = 0
+            self.endpointUsage.removeAll()
+            self.lastDailyReset = Date()
+            self.lastMonthlyReset = Date()
+            self.saveAnalyticsData()
+        }
     }
 }
 
@@ -340,4 +445,38 @@ struct SearchCoin: Codable {
     let id: String
     let name: String
     let symbol: String
+}
+
+// API Usage Statistics Model
+struct APIUsageStatistics {
+    let dailyRequests: Int
+    let monthlyRequests: Int
+    let totalRequests: Int
+    let endpointBreakdown: [String: Int]
+    let lastDailyReset: Date
+    let lastMonthlyReset: Date
+    
+    var averageDailyRequests: Double {
+        let daysSinceStart = max(1, Calendar.current.dateComponents([.day], from: lastMonthlyReset, to: Date()).day ?? 1)
+        return Double(monthlyRequests) / Double(daysSinceStart)
+    }
+    
+    var projectedMonthlyRequests: Int {
+        let daysInMonth = Calendar.current.range(of: .day, in: .month, for: Date())?.count ?? 30
+        return Int(averageDailyRequests * Double(daysInMonth))
+    }
+    
+    func getRecommendedPlan() -> String {
+        let projected = projectedMonthlyRequests
+        
+        if projected <= 10000 {
+            return "Free Tier (up to 10,000 calls/month)"
+        } else if projected <= 50000 {
+            return "Analyst Plan ($129/month - up to 50,000 calls/month)"
+        } else if projected <= 500000 {
+            return "Lite Plan ($399/month - up to 500,000 calls/month)"
+        } else {
+            return "Pro Plan ($999/month - up to 1,000,000 calls/month)"
+        }
+    }
 } 

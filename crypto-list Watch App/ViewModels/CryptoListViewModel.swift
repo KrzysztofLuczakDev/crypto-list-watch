@@ -23,7 +23,9 @@ class CryptoListViewModel: ObservableObject {
     
     private let coinGeckoService = CoinGeckoService.shared
     private let favoritesManager = FavoritesManager.shared
+    private let settingsManager = SettingsManager.shared
     private var searchTask: Task<Void, Never>?
+    private var refreshTimer: Timer?
     
     // Pagination properties
     private var currentPage = 1
@@ -38,6 +40,45 @@ class CryptoListViewModel: ObservableObject {
     init() {
         loadTopCryptocurrencies()
         loadFavorites()
+        setupAutoRefresh()
+        
+        // Listen for settings changes
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(settingsDidChange),
+            name: .settingsDidChange,
+            object: nil
+        )
+    }
+    
+    deinit {
+        refreshTimer?.invalidate()
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    @objc private func settingsDidChange() {
+        setupAutoRefresh()
+        // Reload favorites to apply new sorting and currency changes
+        loadFavorites()
+        // Also reload top cryptocurrencies if currency changed
+        if selectedTab == 0 {
+            loadTopCryptocurrencies()
+        }
+    }
+    
+    private func setupAutoRefresh() {
+        refreshTimer?.invalidate()
+        
+        guard settingsManager.shouldAutoRefresh(),
+              let interval = settingsManager.getCurrentRefreshInterval() else {
+            return
+        }
+        
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.refresh()
+            }
+        }
     }
     
     func loadTopCryptocurrencies() {
@@ -48,7 +89,11 @@ class CryptoListViewModel: ObservableObject {
         
         Task {
             do {
-                let cryptos = try await coinGeckoService.fetchTopCryptocurrencies(page: currentPage, limit: itemsPerPage)
+                let cryptos = try await coinGeckoService.fetchTopCryptocurrencies(
+                    page: currentPage,
+                    limit: itemsPerPage,
+                    currency: settingsManager.currencyPreference.rawValue
+                )
                 await MainActor.run {
                     self.cryptocurrencies = cryptos
                     self.isLoading = false
@@ -79,7 +124,11 @@ class CryptoListViewModel: ObservableObject {
         
         Task {
             do {
-                let newCryptos = try await coinGeckoService.fetchTopCryptocurrencies(page: currentPage, limit: itemsPerPage)
+                let newCryptos = try await coinGeckoService.fetchTopCryptocurrencies(
+                    page: currentPage,
+                    limit: itemsPerPage,
+                    currency: settingsManager.currencyPreference.rawValue
+                )
                 await MainActor.run {
                     self.cryptocurrencies.append(contentsOf: newCryptos)
                     self.isLoadingMore = false
@@ -120,9 +169,12 @@ class CryptoListViewModel: ObservableObject {
         
         Task {
             do {
-                let cryptos = try await coinGeckoService.fetchCryptocurrenciesByIds(favoriteIds)
+                let cryptos = try await coinGeckoService.fetchCryptocurrenciesByIds(
+                    favoriteIds,
+                    currency: settingsManager.currencyPreference.rawValue
+                )
                 await MainActor.run {
-                    self.favoriteCryptocurrencies = cryptos
+                    self.favoriteCryptocurrencies = self.sortFavorites(cryptos)
                     self.isFavoritesLoading = false
                 }
             } catch let error as CoinGeckoError {
@@ -139,6 +191,21 @@ class CryptoListViewModel: ObservableObject {
                     // Don't show error for favorites, just keep empty list
                 }
             }
+        }
+    }
+    
+    private func sortFavorites(_ cryptos: [Cryptocurrency]) -> [Cryptocurrency] {
+        switch settingsManager.watchlistSorting {
+        case .marketCap:
+            return cryptos.sorted { ($0.marketCap ?? 0) > ($1.marketCap ?? 0) }
+        case .volume:
+            return cryptos.sorted { ($0.totalVolume ?? 0) > ($1.totalVolume ?? 0) }
+        case .price:
+            return cryptos.sorted { $0.currentPrice > $1.currentPrice }
+        case .alphabetical:
+            return cryptos.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .priceChange:
+            return cryptos.sorted { ($0.priceChangePercentage24h ?? 0) > ($1.priceChangePercentage24h ?? 0) }
         }
     }
     
@@ -238,4 +305,14 @@ class CryptoListViewModel: ObservableObject {
             self.errorMessage = error.localizedDescription
         }
     }
+    
+    /// Re-sorts the current favorites list without reloading from API
+    func applySortingToFavorites() {
+        favoriteCryptocurrencies = sortFavorites(favoriteCryptocurrencies)
+    }
+}
+
+// MARK: - Notification Extension
+extension Notification.Name {
+    static let settingsDidChange = Notification.Name("settingsDidChange")
 } 

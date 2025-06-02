@@ -61,15 +61,19 @@ struct CryptoTimelineProvider: TimelineProvider {
         
         let coinGeckoService = CoinGeckoService.shared
         
+        // Get user's currency preference (default to USD for widget)
+        let settingsManager = SettingsManager.shared
+        let currency = settingsManager.currencyPreference.rawValue
+        
         if !favoriteIds.isEmpty {
             // Fetch favorites (limit to 3 for widget)
             let limitedIds = Array(favoriteIds.prefix(3))
-            let cryptos = try await coinGeckoService.fetchCryptocurrenciesByIds(limitedIds)
-            return cryptos.map { CryptocurrencyData(from: $0) }
+            let cryptos = try await coinGeckoService.fetchCryptocurrenciesByIds(limitedIds, currency: currency)
+            return cryptos.map { CryptocurrencyData(from: $0, currency: settingsManager.currencyPreference) }
         } else {
             // Fetch top 3 cryptocurrencies
-            let cryptos = try await coinGeckoService.fetchTopCryptocurrencies(limit: 3)
-            return cryptos.map { CryptocurrencyData(from: $0) }
+            let cryptos = try await coinGeckoService.fetchTopCryptocurrencies(limit: 3, currency: currency)
+            return cryptos.map { CryptocurrencyData(from: $0, currency: settingsManager.currencyPreference) }
         }
     }
 }
@@ -86,21 +90,42 @@ struct CryptocurrencyData {
     let name: String
     let currentPrice: Double
     let priceChangePercentage24h: Double?
+    let currency: CurrencyPreference
     
-    init(from crypto: Cryptocurrency) {
+    init(from crypto: Cryptocurrency, currency: CurrencyPreference = .usd) {
         self.id = crypto.id
         self.symbol = crypto.symbol
         self.name = crypto.name
         self.currentPrice = crypto.currentPrice
         self.priceChangePercentage24h = crypto.priceChangePercentage24h
+        self.currency = currency
     }
     
     var formattedPrice: String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
-        formatter.currencyCode = "USD"
-        formatter.maximumFractionDigits = currentPrice < 1 ? 4 : 2
-        return formatter.string(from: NSNumber(value: currentPrice)) ?? "$0.00"
+        
+        switch currency {
+        case .usd:
+            formatter.currencyCode = "USD"
+        case .eur:
+            formatter.currencyCode = "EUR"
+        case .btc:
+            formatter.currencySymbol = "₿"
+            formatter.maximumFractionDigits = 8
+        case .eth:
+            formatter.currencySymbol = "Ξ"
+            formatter.maximumFractionDigits = 6
+        }
+        
+        if currency == .btc || currency == .eth {
+            formatter.numberStyle = .decimal
+            let formatted = formatter.string(from: NSNumber(value: currentPrice)) ?? "0"
+            return "\(currency.symbol)\(formatted)"
+        } else {
+            formatter.maximumFractionDigits = currentPrice < 1 ? 4 : 2
+            return formatter.string(from: NSNumber(value: currentPrice)) ?? "\(currency.symbol)0.00"
+        }
     }
     
     var formattedPriceChange: String {

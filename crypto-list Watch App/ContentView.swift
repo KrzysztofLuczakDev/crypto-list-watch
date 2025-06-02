@@ -50,6 +50,10 @@ struct ContentView: View {
                         .tag(1)
                 }
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .automatic))
+                .onChange(of: viewModel.selectedTab) { oldValue, newValue in
+                    // Refetch data when tab changes
+                    viewModel.refresh()
+                }
             }
         }
         .sheet(isPresented: $showingSettings) {
@@ -96,7 +100,7 @@ struct ContentView: View {
             if !viewModel.searchText.isEmpty {
                 Button(action: viewModel.clearSearch) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.gray)
+                        .foregroundColor(.secondary)
                         .font(.system(size: 10))
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -110,15 +114,17 @@ struct ContentView: View {
                 HStack {
                     Text("Close")
                         .font(.system(size: 9))
-                        .foregroundColor(.gray)
+                        .foregroundColor(.secondary)
                 }
             }
             .buttonStyle(PlainButtonStyle())
         }
         .padding(.horizontal, 8)
         .frame(height: 20)
-        .background(Color(white: 0.1).opacity(0.2))
-        .clipShape(Capsule())
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.primary.opacity(0.1))
+        )
         .padding(.horizontal, 12)
         .padding(.top, 2)
         .transition(.move(edge: .top).combined(with: .opacity))

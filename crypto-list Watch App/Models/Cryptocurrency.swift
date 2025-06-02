@@ -13,9 +13,10 @@ struct Cryptocurrency: Codable, Identifiable {
     let name: String
     let image: String
     let currentPrice: Double
-    let marketCap: Double
+    let marketCap: Double?
     let marketCapRank: Int
     let priceChangePercentage24h: Double?
+    let totalVolume: Double?
     
     enum CodingKeys: String, CodingKey {
         case id, symbol, name, image
@@ -23,6 +24,20 @@ struct Cryptocurrency: Codable, Identifiable {
         case marketCap = "market_cap"
         case marketCapRank = "market_cap_rank"
         case priceChangePercentage24h = "price_change_percentage_24h"
+        case totalVolume = "total_volume"
+    }
+    
+    // Initialize with optional values for compatibility
+    init(id: String, symbol: String, name: String, image: String, currentPrice: Double, marketCap: Double?, marketCapRank: Int, priceChangePercentage24h: Double?, totalVolume: Double? = nil) {
+        self.id = id
+        self.symbol = symbol
+        self.name = name
+        self.image = image
+        self.currentPrice = currentPrice
+        self.marketCap = marketCap
+        self.marketCapRank = marketCapRank
+        self.priceChangePercentage24h = priceChangePercentage24h
+        self.totalVolume = totalVolume
     }
     
     var formattedPrice: String {
@@ -34,6 +49,8 @@ struct Cryptocurrency: Codable, Identifiable {
     }
     
     var formattedMarketCap: String {
+        guard let marketCap = marketCap else { return "N/A" }
+        
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = "USD"

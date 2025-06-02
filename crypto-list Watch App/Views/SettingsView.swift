@@ -9,82 +9,246 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var settingsManager = SettingsManager.shared
+    
+    // Navigation states
+    @State private var showingCurrencySelection = false
+    @State private var showingThemeSelection = false
+    @State private var showingRefreshIntervalSelection = false
+    @State private var showingSortingSelection = false
+    @State private var showingChartRangeSelection = false
+    @State private var showingFAQ = false
+    @State private var showingReportBug = false
+    @State private var showingTermsPrivacy = false
+    @State private var showingAPIUsage = false
     
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 12) {
                     // App Info Section
-                    VStack(spacing: 8) {
-                        Image(systemName: "bitcoinsign.circle.fill")
-                            .font(.title)
-                            .foregroundColor(.orange)
-                        
-                        Text("Crypto List")
-                            .font(.system(size: 14))
-                            .fontWeight(.semibold)
-                        
-                        Text("v1.0.0")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.top, 8)
+                    appInfoSection
                     
                     Divider()
                     
-                    // Settings Options
-                    VStack(spacing: 8) {
-                        SettingsRow(
-                            icon: "arrow.clockwise",
-                            title: "Refresh Rate",
-                            value: "30s"
-                        )
-                        
-                        SettingsRow(
-                            icon: "bell",
-                            title: "Notifications",
-                            value: "Off"
-                        )
-                        
-                        SettingsRow(
-                            icon: "chart.line.uptrend.xyaxis",
-                            title: "Currency",
-                            value: "USD"
-                        )
-                    }
+                    // Preferences Section
+                    preferencesSection
+                    
+                    Divider()
+                    
+                    // Watchlist Settings Section
+                    watchlistSettingsSection
+                    
+                    Divider()
+                    
+                    // Developer Section
+                    developerSection
+                    
+                    Divider()
+                    
+                    // Help & Support Section
+                    helpSupportSection
                     
                     Divider()
                     
                     // About Section
-                    VStack(spacing: 6) {
-                        Text("About")
-                            .font(.system(size: 11))
-                            .fontWeight(.semibold)
-                            .foregroundColor(.secondary)
-                        
-                        Text("Real-time cryptocurrency prices powered by CoinGecko API")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 8)
-                    }
+                    aboutSection
                 }
                 .padding(.horizontal, 12)
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .font(.system(size: 11))
+        }
+        // Navigation sheets
+        .sheet(isPresented: $showingCurrencySelection) {
+            CurrencySelectionView()
+        }
+        .sheet(isPresented: $showingThemeSelection) {
+            ThemeSelectionView()
+        }
+        .sheet(isPresented: $showingRefreshIntervalSelection) {
+            RefreshIntervalSelectionView()
+        }
+        .sheet(isPresented: $showingSortingSelection) {
+            WatchlistSortingSelectionView()
+        }
+        .sheet(isPresented: $showingChartRangeSelection) {
+            ChartTimeRangeSelectionView()
+        }
+        .sheet(isPresented: $showingFAQ) {
+            FAQView()
+        }
+        .sheet(isPresented: $showingReportBug) {
+            ReportBugView()
+        }
+        .sheet(isPresented: $showingTermsPrivacy) {
+            TermsPrivacyView()
+        }
+        .sheet(isPresented: $showingAPIUsage) {
+            APIUsageDebugView()
+        }
+    }
+    
+    // MARK: - App Info Section
+    private var appInfoSection: some View {
+        VStack(spacing: 8) {
+            Text("Crypto List")
+                .font(.system(size: 14))
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+            
+            Text("v1.0.0")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+        }
+        .padding(.top, 8)
+    }
+    
+    // MARK: - Preferences Section
+    private var preferencesSection: some View {
+        VStack(spacing: 8) {
+            SettingsSectionHeader(title: "Preferences", icon: "gear")
+            
+            VStack(spacing: 6) {
+                SettingsNavigationRow(
+                    icon: "dollarsign.circle",
+                    title: "Currency",
+                    value: "\(settingsManager.currencyPreference.symbol) \(settingsManager.currencyPreference.displayName)"
+                ) {
+                    showingCurrencySelection = true
+                }
+                
+                SettingsNavigationRow(
+                    icon: settingsManager.themeMode.iconName,
+                    title: "Theme",
+                    value: settingsManager.themeMode.displayName
+                ) {
+                    showingThemeSelection = true
+                }
+                
+                SettingsNavigationRow(
+                    icon: "arrow.clockwise",
+                    title: "Refresh Interval",
+                    value: settingsManager.dataRefreshInterval.displayName
+                ) {
+                    showingRefreshIntervalSelection = true
                 }
             }
         }
     }
+    
+    // MARK: - Watchlist Settings Section
+    private var watchlistSettingsSection: some View {
+        VStack(spacing: 8) {
+            SettingsSectionHeader(title: "Watchlist Settings", icon: "star")
+            
+            VStack(spacing: 6) {
+                SettingsNavigationRow(
+                    icon: settingsManager.watchlistSorting.iconName,
+                    title: "Sorting",
+                    value: settingsManager.watchlistSorting.displayName
+                ) {
+                    showingSortingSelection = true
+                }
+                
+                SettingsNavigationRow(
+                    icon: "chart.xyaxis.line",
+                    title: "Default Chart Range",
+                    value: settingsManager.defaultChartTimeRange.displayName
+                ) {
+                    showingChartRangeSelection = true
+                }
+            }
+        }
+    }
+    
+    // MARK: - Developer Section
+    private var developerSection: some View {
+        VStack(spacing: 8) {
+            SettingsSectionHeader(title: "Developer", icon: "hammer")
+            
+            VStack(spacing: 6) {
+                SettingsActionRow(
+                    icon: "chart.bar",
+                    title: "API Usage"
+                ) {
+                    showingAPIUsage = true
+                }
+            }
+        }
+    }
+    
+    // MARK: - Help & Support Section
+    private var helpSupportSection: some View {
+        VStack(spacing: 8) {
+            SettingsSectionHeader(title: "Help & Support", icon: "questionmark.circle")
+            
+            VStack(spacing: 6) {
+                SettingsActionRow(
+                    icon: "questionmark.circle",
+                    title: "FAQ"
+                ) {
+                    showingFAQ = true
+                }
+                
+                SettingsActionRow(
+                    icon: "ladybug",
+                    title: "Report a Bug"
+                ) {
+                    showingReportBug = true
+                }
+                
+                SettingsActionRow(
+                    icon: "doc.text",
+                    title: "Terms & Privacy"
+                ) {
+                    showingTermsPrivacy = true
+                }
+            }
+        }
+    }
+    
+    // MARK: - About Section
+    private var aboutSection: some View {
+        VStack(spacing: 6) {
+            Text("About")
+                .font(.system(size: 11))
+                .fontWeight(.semibold)
+                .foregroundColor(.secondary)
+            
+            Text("Real-time cryptocurrency prices powered by CoinGecko API")
+                .font(.system(size: 9))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
+            
+            // Reset Settings Button
+            Button(action: {
+                settingsManager.resetToDefaults()
+            }) {
+                HStack {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 10))
+                        .foregroundColor(.red)
+                    
+                    Text("Reset to Defaults")
+                        .font(.system(size: 10))
+                        .foregroundColor(.red)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.primary.opacity(0.1))
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+            .padding(.top, 8)
+        }
+    }
 }
 
+// Keep the original SettingsRow for backward compatibility if needed elsewhere
 struct SettingsRow: View {
     let icon: String
     let title: String

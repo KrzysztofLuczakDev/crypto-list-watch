@@ -209,41 +209,40 @@ class CoinGeckoService: ObservableObject {
     
     // MARK: - Public API Methods
     
-    func fetchTopCryptocurrencies(limit: Int = CoinGeckoConstants.defaultItemsPerPage) async throws -> [Cryptocurrency] {
-        let urlString = CoinGeckoConstants.marketsURL(page: 1, limit: limit)
+    func fetchTopCryptocurrencies(limit: Int = CoinGeckoConstants.defaultItemsPerPage, currency: String = CoinGeckoConstants.QueryParams.defaultVsCurrency) async throws -> [Cryptocurrency] {
+        let urlString = CoinGeckoConstants.marketsURL(page: 1, limit: limit, currency: currency)
         
         guard let url = URL(string: urlString) else {
             throw CoinGeckoError.invalidURL
         }
         
-        let cacheKey = CoinGeckoConstants.topCryptosCacheKey(limit: limit)
+        let cacheKey = CoinGeckoConstants.topCryptosCacheKey(limit: limit, currency: currency)
         return try await performRequest(url: url, type: [Cryptocurrency].self, cacheKey: cacheKey)
     }
     
-    func fetchTopCryptocurrencies(page: Int, limit: Int = CoinGeckoConstants.defaultItemsPerPage) async throws -> [Cryptocurrency] {
-        let urlString = CoinGeckoConstants.marketsURL(page: page, limit: limit)
+    func fetchTopCryptocurrencies(page: Int, limit: Int = CoinGeckoConstants.defaultItemsPerPage, currency: String = CoinGeckoConstants.QueryParams.defaultVsCurrency) async throws -> [Cryptocurrency] {
+        let urlString = CoinGeckoConstants.marketsURL(page: page, limit: limit, currency: currency)
         
         guard let url = URL(string: urlString) else {
             throw CoinGeckoError.invalidURL
         }
         
-        let cacheKey = CoinGeckoConstants.topCryptosPageCacheKey(page: page, limit: limit)
+        let cacheKey = CoinGeckoConstants.topCryptosPageCacheKey(page: page, limit: limit, currency: currency)
         return try await performRequest(url: url, type: [Cryptocurrency].self, cacheKey: cacheKey)
     }
     
-    func fetchCryptocurrenciesByIds(_ ids: [String]) async throws -> [Cryptocurrency] {
+    func fetchCryptocurrenciesByIds(_ ids: [String], currency: String = CoinGeckoConstants.QueryParams.defaultVsCurrency) async throws -> [Cryptocurrency] {
         guard !ids.isEmpty else {
             return []
         }
         
-        let idsString = ids.joined(separator: ",")
-        let urlString = "\(baseURL)\(CoinGeckoConstants.Endpoints.markets)?vs_currency=\(CoinGeckoConstants.QueryParams.vsCurrency)&ids=\(idsString)&order=\(CoinGeckoConstants.QueryParams.order)&per_page=\(ids.count)&page=1&sparkline=\(CoinGeckoConstants.QueryParams.sparkline)&price_change_percentage=\(CoinGeckoConstants.QueryParams.priceChangePercentage)"
+        let urlString = CoinGeckoConstants.marketsURLByIds(ids: ids, currency: currency)
         
         guard let url = URL(string: urlString) else {
             throw CoinGeckoError.invalidURL
         }
         
-        let cacheKey = CoinGeckoConstants.cryptosByIdsCacheKey(ids: ids)
+        let cacheKey = CoinGeckoConstants.cryptosByIdsCacheKey(ids: ids, currency: currency)
         return try await performRequest(url: url, type: [Cryptocurrency].self, cacheKey: cacheKey)
     }
     
@@ -264,7 +263,7 @@ class CoinGeckoService: ObservableObject {
             return []
         }
         
-        // Now fetch market data for these coins
+        // Now fetch market data for these coins (using default currency for search)
         return try await fetchCryptocurrenciesByIds(coinIds)
     }
     
