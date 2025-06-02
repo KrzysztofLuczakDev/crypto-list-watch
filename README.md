@@ -1,86 +1,75 @@
 # Crypto List - Apple Watch App
 
-A cryptocurrency tracking app for Apple Watch that displays real-time cryptocurrency prices and market data.
+A sleek and intuitive cryptocurrency tracking app designed specifically for Apple Watch. Monitor your favorite cryptocurrencies with real-time price updates, market data, and customizable watchlists.
 
 ## Features
 
-### 📊 Top Cryptocurrencies
+- **Real-time Price Updates**: Live cryptocurrency prices and market data
+- Real-time price updates from CoinLore API (completely free)
+- **Favorites/Watchlist**: Add and manage your favorite cryptocurrencies
+- **Multiple Currency Support**: View prices in 30+ fiat currencies and 6 cryptocurrencies
+- **Dark Mode Interface**: Optimized for Apple Watch with dark theme
+- **Smart Refresh**: Intelligent data caching to minimize API calls
+- **Search Functionality**: Find cryptocurrencies by name or symbol
+- **Pagination Support**: Browse through thousands of cryptocurrencies
+- **Auto-refresh**: Configurable automatic data updates
 
-- View the top 10 cryptocurrencies by market cap
-- Real-time price updates from CoinGecko API
-- Market cap rankings and 24-hour price changes
-- Color-coded price change indicators (green for gains, red for losses)
+## Architecture
 
-### ⭐ Favorites System
+### Core Components
 
-- **Star Button**: Tap the star icon next to any cryptocurrency to add it to your favorites
-- **Favorites Tab**: Swipe to access your personalized favorites list
-- **Persistent Storage**: Your favorite coins are saved locally and persist between app launches
-- **Quick Access**: Easily toggle favorites on/off with a single tap
+- **CoinLoreService**: API service for cryptocurrency data from CoinLore
+- **CurrencyConversionService**: Free currency conversion using fawazahmed0/currency-api
+- **FavoritesManager**: Manages user's favorite cryptocurrencies using nameids
+- **SettingsManager**: Handles app preferences and configuration
+- **CryptoListViewModel**: Main view model with smart refresh logic
 
-### 🔍 Search Functionality
+### APIs Used
 
-- Search for any cryptocurrency by name or symbol
-- Real-time search results with debounced API calls
-- Clear search functionality
+- **CoinLore API**: Free cryptocurrency data API with no rate limits
+- **fawazahmed0/currency-api**: Completely free currency conversion API
 
-### 📱 Watch-Optimized UI
+## Technical Details
 
-- Compact design optimized for Apple Watch screens
-- Tab-based navigation between Top Coins and Favorites
-- Pull-to-refresh functionality
-- Loading states and error handling
+### Smart Refresh System
 
-## Technical Implementation
+- Data is cached for 30 seconds to avoid unnecessary API calls
+- Tab switching only refreshes if data is stale
+- Force refresh available via pull-to-refresh gesture
+- Auto-refresh timer uses smart refresh to minimize network usage
 
-### Architecture
+### Currency Support
 
-- **MVVM Pattern**: Clean separation of concerns with ViewModels
-- **SwiftUI**: Modern declarative UI framework
-- **Async/Await**: Modern concurrency for API calls
-- **UserDefaults**: Local persistence for favorites
+- 30+ fiat currencies supported
+- 6 major cryptocurrencies as base currencies
+- Real-time currency conversion from USD base prices
+- Exchange rates cached for optimal performance
 
-### Key Components
+### Favorites System
 
-- `FavoritesManager`: Handles favorite cryptocurrency persistence
-- `CoinGeckoService`: API service for cryptocurrency data
-- `CryptoListViewModel`: Main view model managing state and data
-- `CryptocurrencyRowView`: Reusable row component with star button
-
-### API Integration
-
-- **CoinGecko API**: Free cryptocurrency data API
-- **Endpoints Used**:
-  - `/coins/markets` - Top cryptocurrencies and specific coin data
-  - `/search` - Cryptocurrency search functionality
-
-## Usage
-
-1. **Browse Top Coins**: The app opens to show the top 10 cryptocurrencies
-2. **Add Favorites**: Tap the star icon next to any coin to add it to favorites
-3. **View Favorites**: Swipe right to access your favorites tab
-4. **Search**: Use the search bar to find specific cryptocurrencies
-5. **Refresh**: Pull down to refresh the data
-
-## Requirements
-
-- Apple Watch with watchOS 11.5 or later
-- Internet connection for real-time data
+- Uses cryptocurrency `nameid` for reliable identification
+- Automatic migration from old ID-based system
+- Smart detection of favorites list changes
+- Persistent storage across app launches
 
 ## Installation
 
-1. Open the project in Xcode
-2. Select your Apple Watch as the target device
-3. Build and run the app
+1. Clone the repository
+2. Open `crypto-list.xcodeproj` in Xcode
+3. Select your Apple Watch as the target device
+4. Build and run the project
 
-## Future Enhancements
+## Requirements
 
-- Price alerts and notifications
-- Portfolio tracking
-- Historical price charts
-- Additional market data (volume, supply, etc.)
-- Customizable refresh intervals
+- Xcode 15.0+
+- watchOS 10.0+
+- Apple Watch Series 4 or later
 
-## License
+## API Information
 
-MIT License - feel free to use this project for learning and development.
+This app uses completely free APIs:
+
+- **CoinLore**: Unlimited free cryptocurrency data
+- **fawazahmed0/currency-api**: Unlimited free currency conversion
+
+No API keys required, perfect for commercial use without restrictions.

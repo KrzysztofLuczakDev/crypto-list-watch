@@ -7,29 +7,41 @@
 
 import Foundation
 
-struct Cryptocurrency: Codable, Identifiable {
-    let id: String
+struct Cryptocurrency: Identifiable, Codable, Hashable {
+    let id: String // Keep numeric id for API calls
+    let nameid: String // Use this for favorites and identification
     let symbol: String
     let name: String
     let image: String
     let currentPrice: Double
     let marketCap: Double?
-    let marketCapRank: Int
+    let marketCapRank: Int?
     let priceChangePercentage24h: Double?
     let totalVolume: Double?
     
+    // Use nameid as the primary identifier for favorites
+    var favoriteId: String {
+        return nameid
+    }
+    
+    // CodingKeys for proper Codable conformance
     enum CodingKeys: String, CodingKey {
-        case id, symbol, name, image
-        case currentPrice = "current_price"
-        case marketCap = "market_cap"
-        case marketCapRank = "market_cap_rank"
-        case priceChangePercentage24h = "price_change_percentage_24h"
-        case totalVolume = "total_volume"
+        case id
+        case nameid
+        case symbol
+        case name
+        case image
+        case currentPrice
+        case marketCap
+        case marketCapRank
+        case priceChangePercentage24h
+        case totalVolume
     }
     
     // Initialize with optional values for compatibility
-    init(id: String, symbol: String, name: String, image: String, currentPrice: Double, marketCap: Double?, marketCapRank: Int, priceChangePercentage24h: Double?, totalVolume: Double? = nil) {
+    init(id: String, nameid: String = "", symbol: String, name: String, image: String, currentPrice: Double, marketCap: Double?, marketCapRank: Int?, priceChangePercentage24h: Double?, totalVolume: Double? = nil) {
         self.id = id
+        self.nameid = nameid.isEmpty ? id : nameid // Fallback to id if nameid is empty
         self.symbol = symbol
         self.name = name
         self.image = image
@@ -38,6 +50,14 @@ struct Cryptocurrency: Codable, Identifiable {
         self.marketCapRank = marketCapRank
         self.priceChangePercentage24h = priceChangePercentage24h
         self.totalVolume = totalVolume
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(nameid) // Use nameid for hashing
+    }
+    
+    static func == (lhs: Cryptocurrency, rhs: Cryptocurrency) -> Bool {
+        return lhs.nameid == rhs.nameid // Use nameid for equality
     }
     
     var formattedPrice: String {

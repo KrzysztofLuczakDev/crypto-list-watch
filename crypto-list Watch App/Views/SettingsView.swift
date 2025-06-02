@@ -13,7 +13,6 @@ struct SettingsView: View {
     
     // Navigation states
     @State private var showingCurrencySelection = false
-    @State private var showingThemeSelection = false
     @State private var showingRefreshIntervalSelection = false
     @State private var showingSortingSelection = false
     @State private var showingChartRangeSelection = false
@@ -62,9 +61,6 @@ struct SettingsView: View {
         // Navigation sheets
         .sheet(isPresented: $showingCurrencySelection) {
             CurrencySelectionView()
-        }
-        .sheet(isPresented: $showingThemeSelection) {
-            ThemeSelectionView()
         }
         .sheet(isPresented: $showingRefreshIntervalSelection) {
             RefreshIntervalSelectionView()
@@ -116,14 +112,6 @@ struct SettingsView: View {
                     value: "\(settingsManager.currencyPreference.symbol) \(settingsManager.currencyPreference.displayName)"
                 ) {
                     showingCurrencySelection = true
-                }
-                
-                SettingsNavigationRow(
-                    icon: settingsManager.themeMode.iconName,
-                    title: "Theme",
-                    value: settingsManager.themeMode.displayName
-                ) {
-                    showingThemeSelection = true
                 }
                 
                 SettingsNavigationRow(
@@ -216,7 +204,7 @@ struct SettingsView: View {
                 .fontWeight(.semibold)
                 .foregroundColor(.secondary)
             
-            Text("Real-time cryptocurrency prices powered by CoinGecko API")
+            Text("Real-time cryptocurrency prices powered by CoinLore API with completely free currency conversion (no limits)")
                 .font(.system(size: 9))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

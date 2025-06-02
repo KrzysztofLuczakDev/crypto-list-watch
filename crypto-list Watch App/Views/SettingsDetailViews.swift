@@ -114,54 +114,6 @@ struct CurrencySelectionView: View {
     }
 }
 
-// MARK: - Theme Selection View
-struct ThemeSelectionView: View {
-    @ObservedObject var settingsManager = SettingsManager.shared
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 8) {
-                ForEach(ThemeMode.allCases, id: \.self) { theme in
-                    Button(action: {
-                        settingsManager.themeMode = theme
-                        dismiss()
-                    }) {
-                        HStack {
-                            Image(systemName: theme.iconName)
-                                .font(.system(size: 10))
-                                .foregroundColor(.orange)
-                                .frame(width: 16)
-                            
-                            Text(theme.displayName)
-                                .font(.system(size: 10))
-                                .foregroundColor(.primary)
-                            
-                            Spacer()
-                            
-                            if settingsManager.themeMode == theme {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 8))
-                                    .foregroundColor(.orange)
-                            }
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.primary.opacity(0.1))
-                        )
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
-            }
-            .padding(.horizontal, 12)
-        }
-        .navigationTitle("Theme")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
 // MARK: - Refresh Interval Selection View
 struct RefreshIntervalSelectionView: View {
     @ObservedObject var settingsManager = SettingsManager.shared

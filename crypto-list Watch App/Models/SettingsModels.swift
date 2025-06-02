@@ -128,29 +128,6 @@ enum CurrencyPreference: String, CaseIterable {
     }
 }
 
-// MARK: - Theme Mode
-enum ThemeMode: String, CaseIterable {
-    case light = "light"
-    case dark = "dark"
-    case system = "system"
-    
-    var displayName: String {
-        switch self {
-        case .light: return "Light"
-        case .dark: return "Dark"
-        case .system: return "System"
-        }
-    }
-    
-    var iconName: String {
-        switch self {
-        case .light: return "sun.max"
-        case .dark: return "moon"
-        case .system: return "circle.lefthalf.filled"
-        }
-    }
-}
-
 // MARK: - Data Refresh Interval
 enum DataRefreshInterval: String, CaseIterable {
     case tenSeconds = "10"

@@ -499,7 +499,7 @@ struct TermsPrivacyView: View {
                         .fontWeight(.semibold)
                         .foregroundColor(.secondary)
                     
-                    Text("• We don't collect personal data\n• All settings stored locally\n• No tracking or analytics\n• Data from CoinGecko API only")
+                    Text("• We don't collect personal data\n• All settings stored locally\n• No tracking or analytics\n• Data from CoinLore API only")
                         .font(.system(size: 8))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.leading)

@@ -61,10 +61,10 @@ if [ -d "Shared" ]; then
         echo "❌ Cryptocurrency.swift missing"
     fi
     
-    if [ -f "Shared/CoinGeckoService.swift" ]; then
-        echo "✅ CoinGeckoService.swift found"
+    if [ -f "Shared/CoinLoreService.swift" ]; then
+        echo "✅ CoinLoreService.swift found"
     else
-        echo "❌ CoinGeckoService.swift missing"
+        echo "❌ CoinLoreService.swift missing"
     fi
     
     if [ -f "Shared/FavoritesManager.swift" ]; then
@@ -74,6 +74,14 @@ if [ -d "Shared" ]; then
     fi
 else
     echo "❌ Shared folder not found"
+fi
+
+# Check for required service files
+echo "📋 Checking service files..."
+if [ -f "crypto-list Watch App/Services/CoinLoreService.swift" ]; then
+    echo "✅ CoinLoreService.swift found"
+else
+    echo "❌ CoinLoreService.swift missing"
 fi
 
 # Check Xcode project for widget extension target

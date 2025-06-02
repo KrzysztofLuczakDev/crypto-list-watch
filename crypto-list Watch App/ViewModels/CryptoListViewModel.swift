@@ -21,20 +21,25 @@ class CryptoListViewModel: ObservableObject {
     @Published var isSearching = false
     @Published var selectedTab = 0 // 0 for top coins, 1 for favorites
     
-    private let coinGeckoService = CoinGeckoService.shared
+    private let coinLoreService = CoinLoreService.shared
     private let favoritesManager = FavoritesManager.shared
     private let settingsManager = SettingsManager.shared
     private var searchTask: Task<Void, Never>?
     private var refreshTimer: Timer?
     
+    // Track when data was last loaded to avoid unnecessary refreshes
+    private var topCoinsLastLoaded: Date?
+    private var favoritesLastLoaded: Date?
+    private let dataValidityDuration: TimeInterval = 30 // Data is considered fresh for 30 seconds
+    
     // Pagination properties
-    private var currentPage = 1
-    private let itemsPerPage = CoinGeckoConstants.defaultItemsPerPage
-    private let maxItems = CoinGeckoConstants.maxTotalItems
+    private let itemsPerPage = 50 // Reasonable page size for watch
+    private var currentPage = 0
+    private var totalCoinsAvailable = 0
     private var hasMoreData = true
     
     var canLoadMore: Bool {
-        return hasMoreData && cryptocurrencies.count < maxItems && !isLoading && !isLoadingMore
+        return hasMoreData && !isLoading && !isLoadingMore
     }
     
     init() {
@@ -58,9 +63,9 @@ class CryptoListViewModel: ObservableObject {
     
     @objc private func settingsDidChange() {
         setupAutoRefresh()
-        // Reload favorites to apply new sorting and currency changes
+        // Force reload favorites to apply new sorting changes
         loadFavorites()
-        // Also reload top cryptocurrencies if currency changed
+        // Also force reload top cryptocurrencies if we're on that tab
         if selectedTab == 0 {
             loadTopCryptocurrencies()
         }
@@ -76,7 +81,8 @@ class CryptoListViewModel: ObservableObject {
         
         refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.refresh()
+                // Use smart refresh for auto-refresh to avoid unnecessary API calls
+                self?.refreshIfNeeded()
             }
         }
     }
@@ -84,33 +90,30 @@ class CryptoListViewModel: ObservableObject {
     func loadTopCryptocurrencies() {
         isLoading = true
         errorMessage = nil
-        currentPage = 1
+        currentPage = 0
         hasMoreData = true
         
         Task {
             do {
-                let cryptos = try await coinGeckoService.fetchTopCryptocurrencies(
-                    page: currentPage,
-                    limit: itemsPerPage,
-                    currency: settingsManager.currencyPreference.rawValue
-                )
+                let cryptos = try await coinLoreService.fetchTopCryptocurrencies(start: 0, limit: itemsPerPage)
+                let totalCount = try await coinLoreService.getTotalCoinsCount()
+                
                 await MainActor.run {
                     self.cryptocurrencies = cryptos
+                    self.totalCoinsAvailable = totalCount
+                    self.hasMoreData = cryptos.count == self.itemsPerPage && (self.currentPage + 1) * self.itemsPerPage < totalCount
                     self.isLoading = false
-                    // Always allow more loading after initial load unless we got nothing
-                    self.hasMoreData = !cryptos.isEmpty
+                    self.topCoinsLastLoaded = Date()
                 }
-            } catch let error as CoinGeckoError {
+            } catch let error as CoinLoreError {
                 await MainActor.run {
                     self.handleError(error)
                     self.isLoading = false
-                    self.hasMoreData = false
                 }
             } catch {
                 await MainActor.run {
                     self.errorMessage = "Unexpected error: \(error.localizedDescription)"
                     self.isLoading = false
-                    self.hasMoreData = false
                 }
             }
         }
@@ -121,46 +124,44 @@ class CryptoListViewModel: ObservableObject {
         
         isLoadingMore = true
         currentPage += 1
+        let startIndex = currentPage * itemsPerPage
         
         Task {
             do {
-                let newCryptos = try await coinGeckoService.fetchTopCryptocurrencies(
-                    page: currentPage,
-                    limit: itemsPerPage,
-                    currency: settingsManager.currencyPreference.rawValue
-                )
+                let newCryptos = try await coinLoreService.fetchTopCryptocurrencies(start: startIndex, limit: itemsPerPage)
+                
                 await MainActor.run {
                     self.cryptocurrencies.append(contentsOf: newCryptos)
+                    self.hasMoreData = newCryptos.count == self.itemsPerPage && (self.currentPage + 1) * self.itemsPerPage < self.totalCoinsAvailable
                     self.isLoadingMore = false
-                    
-                    // Continue loading until we get no new items OR reach exactly 100 items
-                    self.hasMoreData = !newCryptos.isEmpty && self.cryptocurrencies.count < self.maxItems
                 }
-            } catch let error as CoinGeckoError {
+            } catch let error as CoinLoreError {
                 await MainActor.run {
+                    // Revert page increment on error
+                    self.currentPage -= 1
                     self.isLoadingMore = false
-                    self.currentPage -= 1 // Revert page increment on error
                     
-                    // Only show error for non-retryable errors
-                    if !error.isRetryable {
+                    // Only show error for critical issues
+                    if case .noInternetConnection = error {
                         self.errorMessage = error.localizedDescription
                     }
-                    self.hasMoreData = false
                 }
             } catch {
                 await MainActor.run {
+                    // Revert page increment on error
+                    self.currentPage -= 1
                     self.isLoadingMore = false
-                    self.currentPage -= 1 // Revert page increment on error
-                    // Don't show error for pagination, just stop loading more
-                    self.hasMoreData = false
                 }
             }
         }
     }
     
     func loadFavorites() {
-        let favoriteIds = favoritesManager.getFavoritesList()
-        guard !favoriteIds.isEmpty else {
+        let favoriteNameids = favoritesManager.getFavoriteNameidsList()
+        print("CryptoListViewModel: Loading favorites with nameids: \(favoriteNameids)")
+        
+        guard !favoriteNameids.isEmpty else {
+            print("CryptoListViewModel: No favorites to load")
             favoriteCryptocurrencies = []
             return
         }
@@ -169,23 +170,27 @@ class CryptoListViewModel: ObservableObject {
         
         Task {
             do {
-                let cryptos = try await coinGeckoService.fetchCryptocurrenciesByIds(
-                    favoriteIds,
-                    currency: settingsManager.currencyPreference.rawValue
-                )
+                print("CryptoListViewModel: Fetching cryptocurrencies for nameids: \(favoriteNameids)")
+                let cryptos = try await coinLoreService.fetchCryptocurrenciesByNameids(nameids: favoriteNameids)
+                print("CryptoListViewModel: Successfully fetched \(cryptos.count) favorite cryptocurrencies")
+                
                 await MainActor.run {
                     self.favoriteCryptocurrencies = self.sortFavorites(cryptos)
                     self.isFavoritesLoading = false
+                    print("CryptoListViewModel: Updated favorites list with \(self.favoriteCryptocurrencies.count) items")
+                    self.favoritesLastLoaded = Date()
                 }
-            } catch let error as CoinGeckoError {
+            } catch let error as CoinLoreError {
+                print("CryptoListViewModel: CoinLore error loading favorites: \(error)")
                 await MainActor.run {
                     self.isFavoritesLoading = false
                     // Only show error for critical issues
-                    if case .networkUnavailable = error {
+                    if case .noInternetConnection = error {
                         self.errorMessage = error.localizedDescription
                     }
                 }
             } catch {
+                print("CryptoListViewModel: Unexpected error loading favorites: \(error)")
                 await MainActor.run {
                     self.isFavoritesLoading = false
                     // Don't show error for favorites, just keep empty list
@@ -210,12 +215,17 @@ class CryptoListViewModel: ObservableObject {
     }
     
     func toggleFavorite(_ cryptocurrency: Cryptocurrency) {
-        favoritesManager.toggleFavorite(cryptocurrency.id)
-        loadFavorites() // Reload favorites to update the list
+        favoritesManager.toggleFavorite(cryptocurrency)
+        // Invalidate favorites cache since the list changed
+        favoritesLastLoaded = nil
+        // Smart refresh will detect the change and reload if needed
+        if selectedTab == 1 {
+            loadFavoritesIfNeeded()
+        }
     }
     
     func isFavorite(_ cryptocurrency: Cryptocurrency) -> Bool {
-        return favoritesManager.isFavorite(cryptocurrency.id)
+        return favoritesManager.isFavorite(cryptocurrency)
     }
     
     func searchCryptocurrencies() {
@@ -226,7 +236,7 @@ class CryptoListViewModel: ObservableObject {
         }
         
         let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedQuery.count >= CoinGeckoConstants.minSearchQueryLength else {
+        guard trimmedQuery.count >= 2 else { // Minimum search length
             searchResults = []
             isSearching = false
             return
@@ -239,19 +249,19 @@ class CryptoListViewModel: ObservableObject {
         
         searchTask = Task {
             // Add a small delay to avoid too many API calls
-            try? await Task.sleep(nanoseconds: CoinGeckoConstants.searchDebounceDelay)
+            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
             
             guard !Task.isCancelled else { return }
             
             do {
-                let results = try await coinGeckoService.searchCryptocurrencies(query: trimmedQuery)
+                let results = try await coinLoreService.searchCryptocurrencies(query: trimmedQuery)
                 await MainActor.run {
                     if !Task.isCancelled {
                         self.searchResults = results
                         self.isSearching = false
                     }
                 }
-            } catch let error as CoinGeckoError {
+            } catch let error as CoinLoreError {
                 await MainActor.run {
                     if !Task.isCancelled {
                         // Show rate limit errors to user
@@ -289,20 +299,73 @@ class CryptoListViewModel: ObservableObject {
         }
     }
     
+    /// Smart refresh that only loads data if it's stale or missing
+    func refreshIfNeeded() {
+        if selectedTab == 0 {
+            loadTopCryptocurrenciesIfNeeded()
+        } else {
+            loadFavoritesIfNeeded()
+        }
+    }
+    
+    /// Force refresh regardless of data freshness (for pull-to-refresh, settings changes, etc.)
+    func forceRefresh() {
+        refresh()
+    }
+    
+    /// Load top cryptocurrencies only if data is stale or missing
+    private func loadTopCryptocurrenciesIfNeeded() {
+        // Check if we have fresh data
+        if let lastLoaded = topCoinsLastLoaded,
+           Date().timeIntervalSince(lastLoaded) < dataValidityDuration,
+           !cryptocurrencies.isEmpty {
+            print("CryptoListViewModel: Top coins data is still fresh, skipping refresh")
+            return
+        }
+        
+        print("CryptoListViewModel: Top coins data is stale or missing, refreshing")
+        loadTopCryptocurrencies()
+    }
+    
+    /// Load favorites only if data is stale or missing
+    private func loadFavoritesIfNeeded() {
+        // Always check if favorites list has changed
+        let currentFavoriteNameids = Set(favoritesManager.getFavoriteNameidsList())
+        let loadedFavoriteNameids = Set(favoriteCryptocurrencies.map { $0.nameid })
+        
+        // If favorites list changed, we need to reload
+        if currentFavoriteNameids != loadedFavoriteNameids {
+            print("CryptoListViewModel: Favorites list changed, refreshing")
+            loadFavorites()
+            return
+        }
+        
+        // Check if we have fresh data
+        if let lastLoaded = favoritesLastLoaded,
+           Date().timeIntervalSince(lastLoaded) < dataValidityDuration,
+           !favoriteCryptocurrencies.isEmpty {
+            print("CryptoListViewModel: Favorites data is still fresh, skipping refresh")
+            return
+        }
+        
+        print("CryptoListViewModel: Favorites data is stale or missing, refreshing")
+        loadFavorites()
+    }
+    
     // MARK: - Error Handling
     
-    private func handleError(_ error: CoinGeckoError) {
+    private func handleError(_ error: CoinLoreError) {
         switch error {
-        case .networkUnavailable:
-            self.errorMessage = CoinGeckoConstants.ErrorMessages.noInternet
-        case .rateLimitExceeded(let retryAfter):
-            self.errorMessage = "Too many requests. Please wait \(Int(retryAfter)) seconds before trying again."
-        case .serverError(let code) where code >= 500:
-            self.errorMessage = CoinGeckoConstants.ErrorMessages.serverUnavailable
-        case .forbidden, .unauthorized:
-            self.errorMessage = CoinGeckoConstants.ErrorMessages.accessDenied
-        default:
-            self.errorMessage = error.localizedDescription
+        case .noInternetConnection:
+            self.errorMessage = "No internet connection. Please check your network and try again."
+        case .rateLimitExceeded:
+            self.errorMessage = "Too many requests. Please wait a moment before trying again."
+        case .serverError:
+            self.errorMessage = "Server is temporarily unavailable. Please try again later."
+        case .invalidResponse:
+            self.errorMessage = "Invalid response from server. Please try again."
+        case .networkError(let error):
+            self.errorMessage = "Network error: \(error.localizedDescription)"
         }
     }
     

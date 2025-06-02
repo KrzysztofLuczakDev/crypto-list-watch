@@ -17,7 +17,6 @@ class SettingsManager: ObservableObject {
     // MARK: - Settings Keys
     private struct Keys {
         static let currency = "currency_preference"
-        static let themeMode = "theme_mode"
         static let dataRefreshInterval = "data_refresh_interval"
         static let watchlistSorting = "watchlist_sorting"
         static let defaultChartTimeRange = "default_chart_time_range"
@@ -27,13 +26,6 @@ class SettingsManager: ObservableObject {
     @Published var currencyPreference: CurrencyPreference {
         didSet { 
             saveCurrencyPreference()
-            postSettingsChangeNotification()
-        }
-    }
-    
-    @Published var themeMode: ThemeMode {
-        didSet { 
-            saveThemeMode()
             postSettingsChangeNotification()
         }
     }
@@ -62,7 +54,6 @@ class SettingsManager: ObservableObject {
     private init() {
         // Load saved settings or use defaults
         self.currencyPreference = CurrencyPreference(rawValue: userDefaults.string(forKey: Keys.currency) ?? "") ?? .usd
-        self.themeMode = ThemeMode(rawValue: userDefaults.string(forKey: Keys.themeMode) ?? "") ?? .system
         self.dataRefreshInterval = DataRefreshInterval(rawValue: userDefaults.string(forKey: Keys.dataRefreshInterval) ?? "") ?? .thirtySeconds
         self.watchlistSorting = WatchlistSortingPreference(rawValue: userDefaults.string(forKey: Keys.watchlistSorting) ?? "") ?? .marketCap
         self.defaultChartTimeRange = DefaultChartTimeRange(rawValue: userDefaults.string(forKey: Keys.defaultChartTimeRange) ?? "") ?? .oneDay
@@ -71,10 +62,6 @@ class SettingsManager: ObservableObject {
     // MARK: - Save Methods
     private func saveCurrencyPreference() {
         userDefaults.set(currencyPreference.rawValue, forKey: Keys.currency)
-    }
-    
-    private func saveThemeMode() {
-        userDefaults.set(themeMode.rawValue, forKey: Keys.themeMode)
     }
     
     private func saveDataRefreshInterval() {
@@ -96,7 +83,6 @@ class SettingsManager: ObservableObject {
     // MARK: - Reset Methods
     func resetToDefaults() {
         currencyPreference = .usd
-        themeMode = .system
         dataRefreshInterval = .thirtySeconds
         watchlistSorting = .marketCap
         defaultChartTimeRange = .oneDay

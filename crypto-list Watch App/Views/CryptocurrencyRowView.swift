@@ -16,7 +16,8 @@ struct CryptocurrencyRowView: View {
     
     // Computed property for dynamic rank font size
     private var rankFontSize: CGFloat {
-        let rankString = String(cryptocurrency.marketCapRank)
+        guard let rank = cryptocurrency.marketCapRank else { return 7 }
+        let rankString = String(rank)
         switch rankString.count {
         case 1: return 10  // Single digit (1-9)
         case 2: return 9  // Two digits (10-99)
@@ -28,7 +29,7 @@ struct CryptocurrencyRowView: View {
     var body: some View {
         HStack(spacing: 4) {
             // Rank badge with dynamic font size
-            Text("#\(cryptocurrency.marketCapRank)")
+            Text("#\(cryptocurrency.marketCapRank ?? 0)")
                 .font(.system(size: rankFontSize))
                 .fontWeight(.medium)
                 .foregroundColor(.secondary)
@@ -37,17 +38,6 @@ struct CryptocurrencyRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 // Name and Symbol with icon
                 HStack {
-                    // Coin icon
-                    AsyncImage(url: URL(string: cryptocurrency.image)) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                    } placeholder: {
-                        Circle()
-                            .fill(Color.secondary.opacity(0.3))
-                    }
-                    .frame(width: 12, height: 12)
-                    
                     Text("\(cryptocurrency.symbol.uppercased())/\(settingsManager.currencyPreference.displayName)")
                         .font(.system(size: 10))
                         .foregroundColor(.primary)
@@ -100,10 +90,11 @@ struct CryptocurrencyRowView: View {
 #Preview {
     CryptocurrencyRowView(
         cryptocurrency: Cryptocurrency(
-            id: "bitcoin",
+            id: "90",
+            nameid: "bitcoin",
             symbol: "btc",
             name: "Bitcoin",
-            image: "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
+            image: "",
             currentPrice: 450000.0,
             marketCap: 850000000000,
             marketCapRank: 1000,

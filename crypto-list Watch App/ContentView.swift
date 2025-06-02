@@ -51,8 +51,8 @@ struct ContentView: View {
                 }
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .automatic))
                 .onChange(of: viewModel.selectedTab) { oldValue, newValue in
-                    // Refetch data when tab changes
-                    viewModel.refresh()
+                    // Only refresh if data is stale when switching tabs
+                    viewModel.refreshIfNeeded()
                 }
             }
         }
@@ -158,7 +158,7 @@ struct ContentView: View {
                     if viewModel.isLoadingMore {
                         HStack {
                             ProgressView()
-                                .scaleEffect(CoinGeckoConstants.loadingIndicatorScale)
+                                .scaleEffect(0.8)
                             Text("Loading more...")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
@@ -170,7 +170,7 @@ struct ContentView: View {
             .padding(.top, 4)
         }
         .refreshable {
-            viewModel.refresh()
+            viewModel.forceRefresh()
         }
     }
     
@@ -180,14 +180,14 @@ struct ContentView: View {
             return false
         }
         
-        // Load more when we're near the end using the configured offset
-        return currentIndex >= totalCount - CoinGeckoConstants.infiniteScrollTriggerOffset && viewModel.canLoadMore
+        // Load more when we're near the end (within 10 items) and can load more
+        return currentIndex >= totalCount - 10 && viewModel.canLoadMore
     }
     
     private var loadingView: some View {
         VStack(spacing: 8) {
             ProgressView()
-                .scaleEffect(CoinGeckoConstants.loadingIndicatorScale + 0.2)
+                .scaleEffect(1.0)
             Text("Loading...")
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -211,7 +211,7 @@ struct ContentView: View {
                 .multilineTextAlignment(.center)
             
             Button("Retry") {
-                viewModel.refresh()
+                viewModel.forceRefresh()
             }
             .font(.caption)
             .buttonStyle(.borderedProminent)

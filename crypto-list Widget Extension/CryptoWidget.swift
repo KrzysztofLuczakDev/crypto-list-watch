@@ -57,23 +57,23 @@ struct CryptoTimelineProvider: TimelineProvider {
     private func fetchCryptocurrencies() async throws -> [CryptocurrencyData] {
         // Check if user has favorites first
         let favoritesManager = FavoritesManager.shared
-        let favoriteIds = favoritesManager.getFavoritesList()
+        let favoriteNameids = favoritesManager.getFavoriteNameidsList()
         
-        let coinGeckoService = CoinGeckoService.shared
+        let coinLoreService = CoinLoreService.shared
         
         // Get user's currency preference (default to USD for widget)
         let settingsManager = SettingsManager.shared
-        let currency = settingsManager.currencyPreference.rawValue
+        let currency = settingsManager.currencyPreference
         
-        if !favoriteIds.isEmpty {
+        if !favoriteNameids.isEmpty {
             // Fetch favorites (limit to 3 for widget)
-            let limitedIds = Array(favoriteIds.prefix(3))
-            let cryptos = try await coinGeckoService.fetchCryptocurrenciesByIds(limitedIds, currency: currency)
-            return cryptos.map { CryptocurrencyData(from: $0, currency: settingsManager.currencyPreference) }
+            let limitedNameids = Array(favoriteNameids.prefix(3))
+            let cryptos = try await coinLoreService.fetchCryptocurrenciesByNameids(nameids: limitedNameids)
+            return cryptos.map { CryptocurrencyData(from: $0, currency: currency) }
         } else {
             // Fetch top 3 cryptocurrencies
-            let cryptos = try await coinGeckoService.fetchTopCryptocurrencies(limit: 3, currency: currency)
-            return cryptos.map { CryptocurrencyData(from: $0, currency: settingsManager.currencyPreference) }
+            let cryptos = try await coinLoreService.fetchTopCryptocurrencies(start: 0, limit: 3)
+            return cryptos.map { CryptocurrencyData(from: $0, currency: currency) }
         }
     }
 }
@@ -142,7 +142,8 @@ struct CryptocurrencyData {
 let sampleCryptos = [
     CryptocurrencyData(
         from: Cryptocurrency(
-            id: "bitcoin",
+            id: "90",
+            nameid: "bitcoin",
             symbol: "btc",
             name: "Bitcoin",
             image: "",
@@ -154,7 +155,8 @@ let sampleCryptos = [
     ),
     CryptocurrencyData(
         from: Cryptocurrency(
-            id: "ethereum",
+            id: "80",
+            nameid: "ethereum",
             symbol: "eth",
             name: "Ethereum",
             image: "",
@@ -166,7 +168,8 @@ let sampleCryptos = [
     ),
     CryptocurrencyData(
         from: Cryptocurrency(
-            id: "cardano",
+            id: "257",
+            nameid: "cardano",
             symbol: "ada",
             name: "Cardano",
             image: "",

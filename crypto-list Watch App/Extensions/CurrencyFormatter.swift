@@ -136,22 +136,30 @@ extension Double {
     /// - Parameter currency: The currency preference to use for formatting
     /// - Returns: A formatted currency string
     func formatAsCurrency(currency: CurrencyPreference = SettingsManager.shared.currencyPreference) -> String {
+        // Convert from USD to target currency if needed
+        let convertedValue: Double
+        if currency == .usd {
+            convertedValue = self
+        } else {
+            convertedValue = CurrencyConversionService.shared.convertFromUSD(self, to: currency)
+        }
+        
         let formatter = NumberFormatter.currencyFormatter(for: currency)
         
         switch currency {
         case .usd, .eur, .gbp, .cad, .aud, .chf, .cny, .nok, .sek, .dkk, .pln, .czk, .ron, .bgn, .hrk, .rsd, .try_, .rub, .uah:
             // For most fiat currencies, adjust decimal places based on value
-            formatter.maximumFractionDigits = self < 1 ? 4 : 2
-            return formatter.string(from: NSNumber(value: self)) ?? "\(currency.symbol)0.00"
+            formatter.maximumFractionDigits = convertedValue < 1 ? 4 : 2
+            return formatter.string(from: NSNumber(value: convertedValue)) ?? "\(currency.symbol)0.00"
             
         case .jpy, .huf, .isk:
             // These currencies typically don't use decimal places
             formatter.maximumFractionDigits = 0
-            return formatter.string(from: NSNumber(value: self)) ?? "\(currency.symbol)0"
+            return formatter.string(from: NSNumber(value: convertedValue)) ?? "\(currency.symbol)0"
             
         case .btc, .eth, .bnb, .ada, .dot, .sol:
             // For crypto currencies, use custom formatting
-            let formatted = formatter.string(from: NSNumber(value: self)) ?? "0"
+            let formatted = formatter.string(from: NSNumber(value: convertedValue)) ?? "0"
             return "\(currency.symbol)\(formatted)"
         }
     }
