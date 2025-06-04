@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🔍 Crypto List Widget Setup Checker"
+echo "🔍 Crypto Watch Widget Setup Checker"
 echo "===================================="
 echo ""
 
